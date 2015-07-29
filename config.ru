@@ -1,4 +1,6 @@
-# This file is used by Rack-based servers to start the application.
+require './app'
+require './middlewares/chat_backend'
 
-require ::File.expand_path('../config/environment',  __FILE__)
-run Rails.application
+use ChatDemo::ChatBackend
+
+run ChatDemo::App
