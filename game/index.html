@@ -16,7 +16,7 @@
             width: 600px;
             height: 600px;
             margin: auto;
-            margin-top: 100px;
+            margin-top: 50px;
             margin-bottom: 50px;
             padding: 14px;
             border: 1px solid #ddd;
@@ -46,7 +46,7 @@
         }
 
         #gameActionDisplay, #gamePlayer {
-            font-size: 30px;
+            font-size: 26px;
             text-align: center;
         }
 
@@ -110,14 +110,18 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
     <!-- Include all compiled plugins (below), or include individual files as needed -->
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
 </head>
+
 <body>
 
 <div class="jumbotron centre-block" id='gameEndBox'>
     <h1>Game Over</h1>
     <h2 id='gameEndMessage'>Player 'X' wins!</h2><br />
-    <a class="btn btn-primary btn-lg" href="index.html">Rematch</a>
-    <a class="btn btn-primary btn-lg" href="../index.html">Quit</a>
+    <a class="btn btn-primary btn-lg" onclick="window.location.reload()">Rematch</a>
+    <!--<a class="btn btn-primary btn-lg" href="../index.html">Quit</a>-->
 </div>
 
 <div id="gameOverBg"></div>
@@ -126,170 +130,153 @@
 <div id="game">
   <div id="board">
   	<div>
-  	  <button id="a1"></button>
-  	  <button id="a2"></button>
-  	  <button id="a3"></button>
+      <button id="a1" onclick="makeMove()"></button>
+  	  <button id="a2" onclick="makeMove()"></button>
+  	  <button id="a3" onclick="makeMove()"></button>
   	</div>
 
   	<div>
-  	  <button id="b1"></button>
-  	  <button id="b2"></button>
-  	  <button id="b3"></button>
+  	  <button id="b1" onclick="makeMove()"></button>
+  	  <button id="b2" onclick="makeMove()"></button>
+  	  <button id="b3" onclick="makeMove()"></button>
   	</div>
 
   	<div>
-  	  <button id="c1"></button>
-  	  <button id="c2"></button>
-  	  <button id="c3"></button>
+  	  <button id="c1" onclick="makeMove()"></button>
+  	  <button id="c2" onclick="makeMove()"></button>
+  	  <button id="c3" onclick="makeMove()"></button>
   	</div>
   </div>
 </div>
 
-<div id="gamePlayer">You are Player 'X'</div>
+<div id="gamePlayer"></div>
 <div id="gameActionDisplay"></div>
-<div id="sup">basically my console</div>
+<div id="numPlayers" style="display: none"></div>
 
 <script>
-    function main() {
-      var squares = document.querySelectorAll("#game button");
-      var players = ["X", "O"];
-      var currentTurn = 0;
-      var isGameOver = false;
-      var display = new Display(document.querySelector("#gameActionDisplay"));
-      display.setMessage("Player 'X' begins");
-      for (var i = 0, len = squares.length; i < len; i++)
-        squares[i].addEventListener("click", function(){
-          if (!isValid(this)) {
-            //display.setMessage("Invalid choice");
-          } else {
-            setMark(this, players, currentTurn);
-            isGameOver = checkForWinner(squares, players, currentTurn);
-            if (isGameOver) {
-              document.getElementById('gameEndMessage').innerText = "Player '" + players[currentTurn] + "' WINS!";
-              document.getElementById('gameOverBg').style.display = "block";
-              document.getElementById('gameEndBox').style.display = "block";
-              return;
-            }
-            if (isDraw(squares)) {
-              document.getElementById('gameEndMessage').innerText = "It's a DRAW!";
-              document.getElementById('gameOverBg').style.display = "block";
-              document.getElementById('gameEndBox').style.display = "block";
-              return;
-            }
-            currentTurn += 1;
-            currentTurn %= 2;
-            display.setMessage("Player '" + players[currentTurn] + "' to move");
-          }
-        });
-    }
+    var socket = io();
+    var hasgamestarted = false;
+    var fixed = false;
+    var currentTurn = "X";
+    var whoareyou = "X";
+    var squares = document.querySelectorAll("#game button");
+    document.getElementById('gameActionDisplay').innerText = "Player X begins";
 
-    var Display = function(displayElement) {
-      var display = displayElement;
-      function setText(message) {
-        display.innerText = message;
+    socket.on('num_connections', function(num_connections){
+      document.getElementById('numPlayers').innerText = "num_connections: " + num_connections;
+
+      if(!fixed){
+        if(num_connections == 1){
+          whoareyou = "X";
+        } else if(num_connections == 2){
+          whoareyou = "O";
+        } else {
+          document.getElementById('gameEndMessage').innerText = "Lobby full. Please try again later.";
+          document.getElementById('gameOverBg').style.display = "block";
+          document.getElementById('gameEndBox').style.display = "block";
+          socket.disconnect();
+        }
+        fixed = true;
+        document.getElementById('gamePlayer').innerText = "You are Player " + whoareyou;
       }
-      return {setMessage: setText};
-    };
 
-    function isValid(btn) {
-      return btn.innerText.length == 0;
+      if(num_connections >= 2 && !hasgamestarted){
+        // once opponent connects, do this
+        document.getElementById('beforeGameStartsBg').style.display = "none";
+        hasgamestarted = true;
+      }
+
+      if(num_connections < 2 && hasgamestarted){
+        document.getElementById('beforeGameStartsBg').style.display = "block";
+        document.getElementById('beforeGameStartsBg').innerHTML = "<h1>Your opponent disconnected :O</h1>";
+        socket.disconnect();
+      }
+    });
+
+    socket.on('num_connections', function(num_connections){
+      document.getElementById('numPlayers').innerText = "num_connections: " + num_connections;
+    });
+
+    function makeMove(){
+      var btn = window.event.srcElement.id;
+
+      // valid move
+      if(currentTurn == whoareyou && document.getElementById(btn).innerText.length == 0){
+        socket.emit('move', btn);
+      }
     }
 
-    function checkScore(btn, squares) {
-      console.log("click");
-      console.log(btn);
-      console.log(squares);
-    }
+    socket.on('move', function(box){
+      // set mark
+      document.getElementById(box).innerText = currentTurn;
 
-    function setMark(btn, players, currentTurn) {
-      btn.innerText = players[currentTurn];
-    }
+      if(isGameOver()){
+        document.getElementById('gameEndMessage').innerText = "Player " + currentTurn + " wins!";
+        document.getElementById('gameOverBg').style.display = "block";
+        document.getElementById('gameEndBox').style.display = "block";
+        socket.disconnect();
+      } else if(isDraw()){
+        document.getElementById('gameEndMessage').innerText = "It's a DRAW!";
+        document.getElementById('gameOverBg').style.display = "block";
+        document.getElementById('gameEndBox').style.display = "block";
+        socket.disconnect();
+      } else {
+        if(currentTurn == "X"){
+          currentTurn = "O";
+        } else {
+          currentTurn = "X";
+        }
+        document.getElementById('gameActionDisplay').innerText = "Player " + currentTurn + " to move";
+      }
+    });
 
-    function checkForWinner(squares, players, currentTurn) {
-      if (squares[0].innerText == players[currentTurn] &&
-          squares[1].innerText == players[currentTurn] &&
-          squares[2].innerText == players[currentTurn])
+    function isGameOver(){
+      if (squares[0].innerText == currentTurn &&
+          squares[1].innerText == currentTurn &&
+          squares[2].innerText == currentTurn)
         return true;
-      if (squares[3].innerText == players[currentTurn] &&
-          squares[4].innerText == players[currentTurn] &&
-          squares[5].innerText == players[currentTurn])
+      if (squares[3].innerText == currentTurn &&
+          squares[4].innerText == currentTurn &&
+          squares[5].innerText == currentTurn)
         return true;
-      if (squares[6].innerText == players[currentTurn] &&
-          squares[7].innerText == players[currentTurn] &&
-          squares[8].innerText == players[currentTurn])
+      if (squares[6].innerText == currentTurn &&
+          squares[7].innerText == currentTurn &&
+          squares[8].innerText == currentTurn)
         return true;
-      if (squares[0].innerText == players[currentTurn] &&
-          squares[3].innerText == players[currentTurn] &&
-          squares[6].innerText == players[currentTurn])
+      if (squares[0].innerText == currentTurn &&
+          squares[3].innerText == currentTurn &&
+          squares[6].innerText == currentTurn)
         return true;
-      if (squares[1].innerText == players[currentTurn] &&
-          squares[4].innerText == players[currentTurn] &&
-          squares[7].innerText == players[currentTurn])
+      if (squares[1].innerText == currentTurn &&
+          squares[4].innerText == currentTurn &&
+          squares[7].innerText == currentTurn)
         return true;
-      if (squares[2].innerText == players[currentTurn] &&
-          squares[5].innerText == players[currentTurn] &&
-          squares[8].innerText == players[currentTurn])
+      if (squares[2].innerText == currentTurn &&
+          squares[5].innerText == currentTurn &&
+          squares[8].innerText == currentTurn)
         return true;
-      if (squares[0].innerText == players[currentTurn] &&
-          squares[4].innerText == players[currentTurn] &&
-          squares[8].innerText == players[currentTurn])
+      if (squares[0].innerText == currentTurn &&
+          squares[4].innerText == currentTurn &&
+          squares[8].innerText == currentTurn)
         return true;
-      if (squares[2].innerText == players[currentTurn] &&
-          squares[4].innerText == players[currentTurn] &&
-          squares[6].innerText == players[currentTurn])
+      if (squares[2].innerText == currentTurn &&
+          squares[4].innerText == currentTurn &&
+          squares[6].innerText == currentTurn)
         return true;
       return false;
     }
 
-    function isFullBoard(squares) {
+    function isFullBoard() {
       for (var i = 0, len = squares.length; i < len; i++)
         if (squares[i].innerText.length == 0)
           return false;
       return true;
     }
 
-    function isDraw(squares) {
-      return (!checkForWinner(squares, ["X"], 0)) && isFullBoard(squares);
+    function isDraw() {
+      return !isGameOver() && isFullBoard();
     }
-
-    // once opponent connects, do this
-    document.getElementById('beforeGameStartsBg').style.display = "none";
-
-    (function(){ main();})();
 </script>
-
-
-
-
-<!--
-<ul id="messages"></ul>
-<form action="">
-  <input id="m" autocomplete="off" /><button>Send</button>
-</form>
-
-
-
-
-<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
-<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
-<script>
-  var socket = io();
-
-  $('form').submit(function(){
-    socket.emit('move', $('#m').val()); //pass value of textbox
-    $('#m').val(''); //empty textbox
-    return false;
-  });
-
-  // when you detect a move
-  socket.on('move', function(msg){
-    // what do you do
-    $('#messages').append($('<li>').text(msg));
-  });
-</script>
--->
-
-
 
 </body>
 </html>

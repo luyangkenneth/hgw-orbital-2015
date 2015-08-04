@@ -9,19 +9,19 @@ app.get('/', function(req, res){
 });
 
 io.on('connection', function(socket){
-
-  socket.on('move', function(msg){
-    io.emit('move', msg);
-  });
-  
   num_connections++;
   console.log('num users: ' + num_connections);
+  io.emit('num_connections', num_connections);
 
   socket.on('disconnect', function(){
   	num_connections--;
     console.log('num users: ' + num_connections);
+    io.emit('num_connections', num_connections);
   });
 
+  socket.on('move', function(box){
+    io.emit('move', box);
+  });
 });
 
 http.listen(3000, function(){
