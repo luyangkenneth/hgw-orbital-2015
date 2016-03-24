@@ -1,3 +1,3 @@
 # Team HGW - Orbital 2015
 
-Source code for our project.
+A simple multiplayer tic-tac-toe game, built with Node.js and Socket.io
